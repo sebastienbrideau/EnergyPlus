@@ -252,6 +252,7 @@ namespace Photovoltaics {
         // Using/Aliasing
         using namespace DataHeatBalance;
 
+        using PhotovoltaicThermalCollectors::GetPVTmodelIndex;
         using ScheduleManager::GetScheduleIndex;
         using TranspiredCollector::GetTranspiredCollectorIndex;
 
@@ -434,6 +435,15 @@ namespace Photovoltaics {
                                               "Both " + state.dataPhotovoltaic->PVarray(PVnum).Name + " and " +
                                                   state.dataPhotovoltaic->PVarray(dupPtr).Name +
                                                   " are using exterior vented surface = " + state.dataPhotovoltaic->PVarray(PVnum).SurfaceName);
+                            ErrorsFound = true;
+                        } else if (state.dataPhotovoltaic->PVarray(dupPtr).CellIntegrationMode == CellIntegration::PVTSolarCollector) {
+                            ShowSevereError(state, cCurrentModuleObject + ": problem detected with multiple PV arrays.");
+                            ShowContinueError(state,
+                                              "When using PhotovoltaicThermalSolarCollector heat transfer mode, only one PV array can be coupled");
+                            ShowContinueError(state,
+                                              "Both " + state.dataPhotovoltaic->PVarray(PVnum).Name + " and " +
+                                                  state.dataPhotovoltaic->PVarray(dupPtr).Name +
+                                                  " are using PVT surface = " + state.dataPhotovoltaic->PVarray(PVnum).SurfaceName);
                             ErrorsFound = true;
                         }
                     }
@@ -750,7 +760,7 @@ namespace Photovoltaics {
             }
 
             if (state.dataPhotovoltaic->PVarray(PVnum).CellIntegrationMode == CellIntegration::PVTSolarCollector) {
-                // Call GetPVTmodelIndex( state.dataPhotovoltaic->PVarray(PVNum)%SurfacePtr , state.dataPhotovoltaic->PVarray(PVNum)%PVTPtr )
+                GetPVTmodelIndex(state, state.dataPhotovoltaic->PVarray(PVnum).SurfacePtr, state.dataPhotovoltaic->PVarray(PVnum).PVTPtr);
             }
         }
 
@@ -859,6 +869,7 @@ namespace Photovoltaics {
         // collect statements that assign to variables tied to output variables
 
         // Using/Aliasing
+        using PhotovoltaicThermalCollectors::SetPVTQdotSource;
         using TranspiredCollector::SetUTSCQdotSource;
 
         // SUBROUTINE LOCAL VARIABLE DECLARATIONS:
@@ -893,6 +904,7 @@ namespace Photovoltaics {
                     state, state.dataPhotovoltaic->PVarray(PVnum).ExtVentCavPtr, -1.0 * state.dataPhotovoltaic->PVarray(PVnum).SurfaceSink);
 
             } else if (SELECT_CASE_var == CellIntegration::PVTSolarCollector) {
+                SetPVTQdotSource(state, state.dataPhotovoltaic->PVarray(PVnum).PVTPtr, -1.0 * state.dataPhotovoltaic->PVarray(PVnum).SurfaceSink);
             }
         }
     }
@@ -928,6 +940,7 @@ namespace Photovoltaics {
         //    integrated photovoltaics. Solar 2002, Sunrise on the Reliable Energy Economy, June 15-19, 2002 Reno, NV
 
         // Using/Aliasing
+        using PhotovoltaicThermalCollectors::GetPVTTsColl;
         using TranspiredCollector::GetUTSCTsColl;
 
         int ThisSurf; // working variable for indexing surfaces
@@ -1008,8 +1021,13 @@ namespace Photovoltaics {
                                                state.dataPhotovoltaic->PVarray(PVnum).SNLPVModule.DT0);
 
                 } else if (SELECT_CASE_var == CellIntegration::PVTSolarCollector) {
-                    // add calls to PVT models here
-
+                    GetPVTTsColl(state, state.dataPhotovoltaic->PVarray(PVnum).PVTPtr, state.dataPhotovoltaic->PVarray(PVnum).SNLPVCalc.Tback);
+                    state.dataPhotovoltaic->PVarray(PVnum).SNLPVCalc.Tcell =
+                        SandiaTcellFromTmodule(state.dataPhotovoltaic->PVarray(PVnum).SNLPVCalc.Tback,
+                                               state.dataPhotovoltaic->PVarray(PVnum).SNLPVinto.IcBeam,
+                                               state.dataPhotovoltaic->PVarray(PVnum).SNLPVinto.IcDiffuse,
+                                               state.dataPhotovoltaic->PVarray(PVnum).SNLPVModule.fd,
+                                               state.dataPhotovoltaic->PVarray(PVnum).SNLPVModule.DT0);
                 } else {
                     ShowSevereError(state, "Sandia PV Simulation Temperature Modeling Mode Error in " + state.dataPhotovoltaic->PVarray(PVnum).Name);
                 }
@@ -1233,6 +1251,7 @@ namespace Photovoltaics {
         // PURPOSE OF THIS SUBROUTINE:
         // This subroutine simulates the PV performance.
 
+        using PhotovoltaicThermalCollectors::GetPVTTsColl;
         using TranspiredCollector::GetUTSCTsColl;
 
         Real64 const EPS(0.001);
@@ -1330,7 +1349,8 @@ namespace Photovoltaics {
                         GetExtVentedCavityTsColl(state, state.dataPhotovoltaic->PVarray(PVnum).ExtVentCavPtr, CellTemp);
                         CellTemp += DataGlobalConstants::KelvinConv;
                     } else if (SELECT_CASE_var == CellIntegration::PVTSolarCollector) {
-                        // get PVT model result for cell temp..
+                        GetPVTTsColl(state, state.dataPhotovoltaic->PVarray(PVnum).PVTPtr, CellTemp);
+                        CellTemp += DataGlobalConstants::KelvinConv;
                     }
                 }
 
@@ -1414,7 +1434,8 @@ namespace Photovoltaics {
                     GetExtVentedCavityTsColl(state, state.dataPhotovoltaic->PVarray(PVnum).ExtVentCavPtr, CellTemp);
                     CellTemp += DataGlobalConstants::KelvinConv;
                 } else if (SELECT_CASE_var == CellIntegration::PVTSolarCollector) {
-                    // get PVT model result for cell temp.. //Bug CellTemp not set but used below
+                    GetPVTTsColl(state, state.dataPhotovoltaic->PVarray(PVnum).PVTPtr, CellTemp);
+                    CellTemp += DataGlobalConstants::KelvinConv;
                 } else {
                     assert(false);
                 }

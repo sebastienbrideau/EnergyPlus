@@ -270,11 +270,14 @@ namespace PhotovoltaicThermalCollectors {
         // PURPOSE OF THIS SUBROUTINE:
         // Get input for BIPVT objects
 
-        int Item;                // Item to be "gotten"
-        int NumAlphas;           // Number of Alphas for each GetObjectItem call
-        int NumNumbers;          // Number of Numbers for each GetObjectItem call
-        int IOStatus;            // Used in GetObjectItem
+        int Item;       // Item to be "gotten"
+        int NumAlphas;  // Number of Alphas for each GetObjectItem call
+        int NumNumbers; // Number of Numbers for each GetObjectItem call
+        int IOStatus;   // Used in GetObjectItem
+        int Found;
         bool ErrorsFound(false); // Set to true if errors in input, fatal at end of routine
+        using DataGlobalConstants::ScheduleAlwaysOn;
+        using DataSurfaces::OSCMData;
         using ScheduleManager::GetScheduleIndex;
 
         tmpBIPVTperf.allocate(NumBIPVTPerform);
@@ -295,18 +298,34 @@ namespace PhotovoltaicThermalCollectors {
                 continue;
             tmpBIPVTperf(Item).Name = state.dataIPShortCut->cAlphaArgs(1);
             tmpBIPVTperf(Item).OSCMName = state.dataIPShortCut->cAlphaArgs(2);
+            Found = UtilityRoutines::FindItemInList(tmpBIPVTperf(Item).OSCMName, state.dataSurface->OSCM);
+            if (Found == 0) {
+                std::string object_name = "SolarCollectorPerformance:PhotovoltaicThermal:BIPVT";
+                ShowSevereError(state,
+                                state.dataIPShortCut->cAlphaFieldNames(2) + " not found = " + tmpBIPVTperf(Item).OSCMName + " in " + object_name +
+                                    " = " + tmpBIPVTperf(Item).Name);
+                ErrorsFound = true;
+            }
+            tmpBIPVTperf(Item).OSCMPtr = Found;
             tmpBIPVTperf(Item).PVEffGapWidth = state.dataIPShortCut->rNumericArgs(1);
             tmpBIPVTperf(Item).EffCollHeight = state.dataIPShortCut->rNumericArgs(2);
             tmpBIPVTperf(Item).EffCollWidth = state.dataIPShortCut->rNumericArgs(3);
             tmpBIPVTperf(Item).PVTranAbsProduct = state.dataIPShortCut->rNumericArgs(4);
-            tmpBIPVTperf(Item).BackMatTranAbsProduct = state.dataIPShortCut->rNumericArgs(5);
-            tmpBIPVTperf(Item).PVAreaFract = state.dataIPShortCut->rNumericArgs(6);
-            tmpBIPVTperf(Item).PVRTop = state.dataIPShortCut->rNumericArgs(7);
-            tmpBIPVTperf(Item).PVRBot = state.dataIPShortCut->rNumericArgs(8);
-            tmpBIPVTperf(Item).PVGEmiss = state.dataIPShortCut->rNumericArgs(9);
-            tmpBIPVTperf(Item).BackMatEmiss = state.dataIPShortCut->rNumericArgs(10);
+            tmpBIPVTperf(Item).PVCellTransAbsProduct = state.dataIPShortCut->rNumericArgs(5);
+            tmpBIPVTperf(Item).PVBackTransAbsProduct = state.dataIPShortCut->rNumericArgs(6);
+            tmpBIPVTperf(Item).BackMatTranAbsProduct = state.dataIPShortCut->rNumericArgs(7);
+            tmpBIPVTperf(Item).CladTranAbsProduct = state.dataIPShortCut->rNumericArgs(8);
+            tmpBIPVTperf(Item).PVAreaFract = state.dataIPShortCut->rNumericArgs(9);
+            tmpBIPVTperf(Item).PVCellAreaFract = state.dataIPShortCut->rNumericArgs(10);
+            tmpBIPVTperf(Item).PVRTop = state.dataIPShortCut->rNumericArgs(11);
+            tmpBIPVTperf(Item).PVRBot = state.dataIPShortCut->rNumericArgs(12);
+            tmpBIPVTperf(Item).PVGEmiss = state.dataIPShortCut->rNumericArgs(13);
+            tmpBIPVTperf(Item).BackMatEmiss = state.dataIPShortCut->rNumericArgs(14);
+            tmpBIPVTperf(Item).ThGlass = state.dataIPShortCut->rNumericArgs(15);
+            tmpBIPVTperf(Item).RIndGlass = state.dataIPShortCut->rNumericArgs(16);
+            tmpBIPVTperf(Item).ECoffGlass = state.dataIPShortCut->rNumericArgs(17);
             if (state.dataIPShortCut->lAlphaFieldBlanks(3)) {
-                tmpBIPVTperf(Item).SchedPtr = DataGlobalConstants::ScheduleAlwaysOn;
+                tmpBIPVTperf(Item).SchedPtr = ScheduleAlwaysOn;
             } else {
                 tmpBIPVTperf(Item).SchedPtr = GetScheduleIndex(state, state.dataIPShortCut->cAlphaArgs(3));
                 if (tmpBIPVTperf(Item).SchedPtr == 0) {
@@ -417,13 +436,17 @@ namespace PhotovoltaicThermalCollectors {
                         state.dataPhotovoltaicThermalCollector->PVT(Item).Simple.ThermalActiveFract;
                     state.dataPhotovoltaicThermalCollector->PVT(Item).PVTModelType = SimplePVTmodel;
                 } else {
-                    ThisParamObj = UtilityRoutines::FindItemInList(state.dataPhotovoltaicThermalCollector->PVT(Item).PVTModelName, tmpBIPVTperf);
+
+                    ThisParamObj = UtilityRoutines::FindItemInList(PVT(Item).PVTModelName, tmpBIPVTperf);
+
                     if (ThisParamObj > 0) {
                         state.dataPhotovoltaicThermalCollector->PVT(Item).BIPVT = tmpBIPVTperf(ThisParamObj); // entire structure assigned
                         // do one-time setups on input data
                         state.dataPhotovoltaicThermalCollector->PVT(Item).AreaCol =
-                            state.dataSurface->Surface(state.dataPhotovoltaicThermalCollector->PVT(Item).SurfNum).Area *
-                            state.dataPhotovoltaicThermalCollector->PVT(Item).BIPVT.PVAreaFract;
+
+                            state.dataPhotovoltaicThermalCollector->PVT(Item).BIPVT.EffCollWidth *
+                            state.dataPhotovoltaicThermalCollector->PVT(Item).BIPVT.EffCollHeight;
+
                         state.dataPhotovoltaicThermalCollector->PVT(Item).PVTModelType = BIPVTmodel;
                     } else {
                         ShowSevereError(state, "Invalid " + state.dataIPShortCut->cAlphaFieldNames(3) + " = " + state.dataIPShortCut->cAlphaArgs(3));
@@ -433,126 +456,127 @@ namespace PhotovoltaicThermalCollectors {
                         ErrorsFound = true;
                     }
                 }
-            }
-            if (allocated(state.dataPhotovoltaic->PVarray)) { // then PV input gotten... but don't expect this to be true.
-                state.dataPhotovoltaicThermalCollector->PVT(Item).PVnum =
-                    UtilityRoutines::FindItemInList(state.dataIPShortCut->cAlphaArgs(4), state.dataPhotovoltaic->PVarray);
-                // check PV
-                if (state.dataPhotovoltaicThermalCollector->PVT(Item).PVnum == 0) {
-                    ShowSevereError(state, "Invalid " + state.dataIPShortCut->cAlphaFieldNames(4) + " = " + state.dataIPShortCut->cAlphaArgs(4));
-                    ShowContinueError(state,
-                                      "Entered in " + state.dataIPShortCut->cCurrentModuleObject + " = " + state.dataIPShortCut->cAlphaArgs(1));
-                    ErrorsFound = true;
-                } else {
+
+                if (allocated(state.dataPhotovoltaic->PVarray)) { // then PV input gotten... but don't expect this to be true.
+                    state.dataPhotovoltaicThermalCollector->PVT(Item).PVnum =
+                        UtilityRoutines::FindItemInList(state.dataIPShortCut->cAlphaArgs(4), state.dataPhotovoltaic->PVarray);
+                    // check PV
+                    if (state.dataPhotovoltaicThermalCollector->PVT(Item).PVnum == 0) {
+                        ShowSevereError(state, "Invalid " + state.dataIPShortCut->cAlphaFieldNames(4) + " = " + state.dataIPShortCut->cAlphaArgs(4));
+                        ShowContinueError(state,
+                                          "Entered in " + state.dataIPShortCut->cCurrentModuleObject + " = " + state.dataIPShortCut->cAlphaArgs(1));
+                        ErrorsFound = true;
+                    } else {
+                        state.dataPhotovoltaicThermalCollector->PVT(Item).PVname = state.dataIPShortCut->cAlphaArgs(4);
+                        state.dataPhotovoltaicThermalCollector->PVT(Item).PVfound = true;
+                    }
+                } else { // no PV or not yet gotten.
                     state.dataPhotovoltaicThermalCollector->PVT(Item).PVname = state.dataIPShortCut->cAlphaArgs(4);
-                    state.dataPhotovoltaicThermalCollector->PVT(Item).PVfound = true;
+                    state.dataPhotovoltaicThermalCollector->PVT(Item).PVfound = false;
                 }
-            } else { // no PV or not yet gotten.
-                state.dataPhotovoltaicThermalCollector->PVT(Item).PVname = state.dataIPShortCut->cAlphaArgs(4);
-                state.dataPhotovoltaicThermalCollector->PVT(Item).PVfound = false;
-            }
 
-            if (UtilityRoutines::SameString(state.dataIPShortCut->cAlphaArgs(5), "Water")) {
-                state.dataPhotovoltaicThermalCollector->PVT(Item).WorkingFluidType = WorkingFluidEnum::LIQUID;
-            } else if (UtilityRoutines::SameString(state.dataIPShortCut->cAlphaArgs(5), "Air")) {
-                state.dataPhotovoltaicThermalCollector->PVT(Item).WorkingFluidType = WorkingFluidEnum::AIR;
-            } else {
-                if (state.dataIPShortCut->lAlphaFieldBlanks(5)) {
-                    ShowSevereError(state, "Invalid " + state.dataIPShortCut->cAlphaFieldNames(5) + " = " + state.dataIPShortCut->cAlphaArgs(5));
-                    ShowContinueError(state,
-                                      "Entered in " + state.dataIPShortCut->cCurrentModuleObject + " = " + state.dataIPShortCut->cAlphaArgs(1));
-                    ShowContinueError(state, state.dataIPShortCut->cAlphaFieldNames(5) + " field cannot be blank.");
+                if (UtilityRoutines::SameString(state.dataIPShortCut->cAlphaArgs(5), "Water")) {
+                    state.dataPhotovoltaicThermalCollector->PVT(Item).WorkingFluidType = WorkingFluidEnum::LIQUID;
+                } else if (UtilityRoutines::SameString(state.dataIPShortCut->cAlphaArgs(5), "Air")) {
+                    state.dataPhotovoltaicThermalCollector->PVT(Item).WorkingFluidType = WorkingFluidEnum::AIR;
                 } else {
-                    ShowSevereError(state, "Invalid " + state.dataIPShortCut->cAlphaFieldNames(5) + " = " + state.dataIPShortCut->cAlphaArgs(5));
-                    ShowContinueError(state,
-                                      "Entered in " + state.dataIPShortCut->cCurrentModuleObject + " = " + state.dataIPShortCut->cAlphaArgs(1));
+                    if (state.dataIPShortCut->lAlphaFieldBlanks(5)) {
+                        ShowSevereError(state, "Invalid " + state.dataIPShortCut->cAlphaFieldNames(5) + " = " + state.dataIPShortCut->cAlphaArgs(5));
+                        ShowContinueError(state,
+                                          "Entered in " + state.dataIPShortCut->cCurrentModuleObject + " = " + state.dataIPShortCut->cAlphaArgs(1));
+                        ShowContinueError(state, state.dataIPShortCut->cAlphaFieldNames(5) + " field cannot be blank.");
+                    } else {
+                        ShowSevereError(state, "Invalid " + state.dataIPShortCut->cAlphaFieldNames(5) + " = " + state.dataIPShortCut->cAlphaArgs(5));
+                        ShowContinueError(state,
+                                          "Entered in " + state.dataIPShortCut->cCurrentModuleObject + " = " + state.dataIPShortCut->cAlphaArgs(1));
+                    }
+                    ErrorsFound = true;
                 }
-                ErrorsFound = true;
-            }
-
-            if (state.dataPhotovoltaicThermalCollector->PVT(Item).WorkingFluidType == WorkingFluidEnum::LIQUID) {
-                state.dataPhotovoltaicThermalCollector->PVT(Item).PlantInletNodeNum =
-                    NodeInputManager::GetOnlySingleNode(state,
-                                                        state.dataIPShortCut->cAlphaArgs(6),
-                                                        ErrorsFound,
-                                                        state.dataIPShortCut->cCurrentModuleObject,
-                                                        state.dataIPShortCut->cAlphaArgs(1),
-                                                        DataLoopNode::NodeFluidType::Water,
-                                                        DataLoopNode::NodeConnectionType::Inlet,
-                                                        1,
-                                                        DataLoopNode::ObjectIsNotParent);
-                state.dataPhotovoltaicThermalCollector->PVT(Item).PlantOutletNodeNum =
-                    NodeInputManager::GetOnlySingleNode(state,
-                                                        state.dataIPShortCut->cAlphaArgs(7),
-                                                        ErrorsFound,
-                                                        state.dataIPShortCut->cCurrentModuleObject,
-                                                        state.dataIPShortCut->cAlphaArgs(1),
-                                                        DataLoopNode::NodeFluidType::Water,
-                                                        DataLoopNode::NodeConnectionType::Outlet,
-                                                        1,
-                                                        DataLoopNode::ObjectIsNotParent);
-
-                BranchNodeConnections::TestCompSet(state,
-                                                   state.dataIPShortCut->cCurrentModuleObject,
-                                                   state.dataIPShortCut->cAlphaArgs(1),
-                                                   state.dataIPShortCut->cAlphaArgs(6),
-                                                   state.dataIPShortCut->cAlphaArgs(7),
-                                                   "Water Nodes");
-
-                state.dataPhotovoltaicThermalCollector->PVT(Item).WLoopSideNum = DataPlant::DemandSupply_No;
-            }
-
-            if (state.dataPhotovoltaicThermalCollector->PVT(Item).WorkingFluidType == WorkingFluidEnum::AIR) {
-                state.dataPhotovoltaicThermalCollector->PVT(Item).HVACInletNodeNum =
-                    NodeInputManager::GetOnlySingleNode(state,
-                                                        state.dataIPShortCut->cAlphaArgs(8),
-                                                        ErrorsFound,
-                                                        state.dataIPShortCut->cCurrentModuleObject,
-                                                        state.dataIPShortCut->cAlphaArgs(1),
-                                                        DataLoopNode::NodeFluidType::Air,
-                                                        DataLoopNode::NodeConnectionType::Inlet,
-                                                        1,
-                                                        DataLoopNode::ObjectIsNotParent);
-                state.dataPhotovoltaicThermalCollector->PVT(Item).HVACOutletNodeNum =
-                    NodeInputManager::GetOnlySingleNode(state,
-                                                        state.dataIPShortCut->cAlphaArgs(9),
-                                                        ErrorsFound,
-                                                        state.dataIPShortCut->cCurrentModuleObject,
-                                                        state.dataIPShortCut->cAlphaArgs(1),
-                                                        DataLoopNode::NodeFluidType::Air,
-                                                        DataLoopNode::NodeConnectionType::Outlet,
-                                                        1,
-                                                        DataLoopNode::ObjectIsNotParent);
-
-                BranchNodeConnections::TestCompSet(state,
-                                                   state.dataIPShortCut->cCurrentModuleObject,
-                                                   state.dataIPShortCut->cAlphaArgs(1),
-                                                   state.dataIPShortCut->cAlphaArgs(8),
-                                                   state.dataIPShortCut->cAlphaArgs(9),
-                                                   "Air Nodes");
-            }
-
-            state.dataPhotovoltaicThermalCollector->PVT(Item).DesignVolFlowRate = state.dataIPShortCut->rNumericArgs(1);
-            state.dataPhotovoltaicThermalCollector->PVT(Item).SizingInit = true;
-            if (state.dataPhotovoltaicThermalCollector->PVT(Item).DesignVolFlowRate == DataSizing::AutoSize) {
-                state.dataPhotovoltaicThermalCollector->PVT(Item).DesignVolFlowRateWasAutoSized = true;
-            }
-            if (state.dataPhotovoltaicThermalCollector->PVT(Item).DesignVolFlowRate != DataSizing::AutoSize) {
 
                 if (state.dataPhotovoltaicThermalCollector->PVT(Item).WorkingFluidType == WorkingFluidEnum::LIQUID) {
-                    PlantUtilities::RegisterPlantCompDesignFlow(state,
-                                                                state.dataPhotovoltaicThermalCollector->PVT(Item).PlantInletNodeNum,
-                                                                state.dataPhotovoltaicThermalCollector->PVT(Item).DesignVolFlowRate);
-                } else if (state.dataPhotovoltaicThermalCollector->PVT(Item).WorkingFluidType == WorkingFluidEnum::AIR) {
-                    state.dataPhotovoltaicThermalCollector->PVT(Item).MaxMassFlowRate =
-                        state.dataPhotovoltaicThermalCollector->PVT(Item).DesignVolFlowRate * state.dataEnvrn->StdRhoAir;
-                }
-                state.dataPhotovoltaicThermalCollector->PVT(Item).SizingInit = false;
-            }
-        }
+                    state.dataPhotovoltaicThermalCollector->PVT(Item).PlantInletNodeNum =
+                        NodeInputManager::GetOnlySingleNode(state,
+                                                            state.dataIPShortCut->cAlphaArgs(6),
+                                                            ErrorsFound,
+                                                            state.dataIPShortCut->cCurrentModuleObject,
+                                                            state.dataIPShortCut->cAlphaArgs(1),
+                                                            DataLoopNode::NodeFluidType::Water,
+                                                            DataLoopNode::NodeConnectionType::Inlet,
+                                                            1,
+                                                            DataLoopNode::ObjectIsNotParent);
+                    state.dataPhotovoltaicThermalCollector->PVT(Item).PlantOutletNodeNum =
+                        NodeInputManager::GetOnlySingleNode(state,
+                                                            state.dataIPShortCut->cAlphaArgs(7),
+                                                            ErrorsFound,
+                                                            state.dataIPShortCut->cCurrentModuleObject,
+                                                            state.dataIPShortCut->cAlphaArgs(1),
+                                                            DataLoopNode::NodeFluidType::Water,
+                                                            DataLoopNode::NodeConnectionType::Outlet,
+                                                            1,
+                                                            DataLoopNode::ObjectIsNotParent);
 
-        if (ErrorsFound) {
-            ShowFatalError(state, "Errors found in processing input for photovoltaic thermal collectors");
+                    BranchNodeConnections::TestCompSet(state,
+                                                       state.dataIPShortCut->cCurrentModuleObject,
+                                                       state.dataIPShortCut->cAlphaArgs(1),
+                                                       state.dataIPShortCut->cAlphaArgs(6),
+                                                       state.dataIPShortCut->cAlphaArgs(7),
+                                                       "Water Nodes");
+
+                    state.dataPhotovoltaicThermalCollector->PVT(Item).WLoopSideNum = DataPlant::DemandSupply_No;
+                }
+
+                if (state.dataPhotovoltaicThermalCollector->PVT(Item).WorkingFluidType == WorkingFluidEnum::AIR) {
+                    state.dataPhotovoltaicThermalCollector->PVT(Item).HVACInletNodeNum =
+                        NodeInputManager::GetOnlySingleNode(state,
+                                                            state.dataIPShortCut->cAlphaArgs(8),
+                                                            ErrorsFound,
+                                                            state.dataIPShortCut->cCurrentModuleObject,
+                                                            state.dataIPShortCut->cAlphaArgs(1),
+                                                            DataLoopNode::NodeFluidType::Air,
+                                                            DataLoopNode::NodeConnectionType::Inlet,
+                                                            1,
+                                                            DataLoopNode::ObjectIsNotParent);
+                    state.dataPhotovoltaicThermalCollector->PVT(Item).HVACOutletNodeNum =
+                        NodeInputManager::GetOnlySingleNode(state,
+                                                            state.dataIPShortCut->cAlphaArgs(9),
+                                                            ErrorsFound,
+                                                            state.dataIPShortCut->cCurrentModuleObject,
+                                                            state.dataIPShortCut->cAlphaArgs(1),
+                                                            DataLoopNode::NodeFluidType::Air,
+                                                            DataLoopNode::NodeConnectionType::Outlet,
+                                                            1,
+                                                            DataLoopNode::ObjectIsNotParent);
+
+                    BranchNodeConnections::TestCompSet(state,
+                                                       state.dataIPShortCut->cCurrentModuleObject,
+                                                       state.dataIPShortCut->cAlphaArgs(1),
+                                                       state.dataIPShortCut->cAlphaArgs(8),
+                                                       state.dataIPShortCut->cAlphaArgs(9),
+                                                       "Air Nodes");
+                }
+
+                state.dataPhotovoltaicThermalCollector->PVT(Item).DesignVolFlowRate = state.dataIPShortCut->rNumericArgs(1);
+                state.dataPhotovoltaicThermalCollector->PVT(Item).SizingInit = true;
+                if (state.dataPhotovoltaicThermalCollector->PVT(Item).DesignVolFlowRate == DataSizing::AutoSize) {
+                    state.dataPhotovoltaicThermalCollector->PVT(Item).DesignVolFlowRateWasAutoSized = true;
+                }
+                if (state.dataPhotovoltaicThermalCollector->PVT(Item).DesignVolFlowRate != DataSizing::AutoSize) {
+
+                    if (state.dataPhotovoltaicThermalCollector->PVT(Item).WorkingFluidType == WorkingFluidEnum::LIQUID) {
+                        PlantUtilities::RegisterPlantCompDesignFlow(state,
+                                                                    state.dataPhotovoltaicThermalCollector->PVT(Item).PlantInletNodeNum,
+                                                                    state.dataPhotovoltaicThermalCollector->PVT(Item).DesignVolFlowRate);
+                    } else if (state.dataPhotovoltaicThermalCollector->PVT(Item).WorkingFluidType == WorkingFluidEnum::AIR) {
+                        state.dataPhotovoltaicThermalCollector->PVT(Item).MaxMassFlowRate =
+                            state.dataPhotovoltaicThermalCollector->PVT(Item).DesignVolFlowRate * state.dataEnvrn->StdRhoAir;
+                    }
+                    state.dataPhotovoltaicThermalCollector->PVT(Item).SizingInit = false;
+                }
+            }
+
+            if (ErrorsFound) {
+                ShowFatalError(state, "Errors found in processing input for photovoltaic thermal collectors");
+            }
         }
     }
 
@@ -1201,6 +1225,7 @@ namespace PhotovoltaicThermalCollectors {
                     //  water removal would be needed.. not going to allow that for now.  limit cooling to dew point and model bypass
                     if (Tinlet != PotentialOutletTemp) {
                         BypassFraction = (DewPointInlet - PotentialOutletTemp) / (Tinlet - PotentialOutletTemp);
+
                     } else {
                         BypassFraction = 0.0;
                     }
@@ -1250,41 +1275,34 @@ namespace PhotovoltaicThermalCollectors {
         // ???
 
         static std::string const RoutineName("CalcBIPVTcollectors");
+        using ScheduleManager::GetCurrentScheduleValue;
 
         int InletNode = this->HVACInletNodeNum;
         Real64 mdot = this->MassFlowRate;
         Real64 Tinlet = state.dataLoopNodes->Node(InletNode).Temp;
         Real64 BypassFraction(0.0);
-        Real64 PotentialOutletTemp(0.0);
+        Real64 PotentialOutletTemp(Tinlet);
+        Real64 PotentialHeatGain(0.0);
+        Real64 Eff(0.0);
+        Real64 Tcollector(Tinlet);
+        Real64 small_num(1.0e-10);
+        std::string Mode("Heating");
 
-        if (this->HeatingUseful && this->BypassDamperOff && (mdot > 0.0)) {
+        if (this->HeatingUseful && this->BypassDamperOff && (mdot > 0.0) && (GetCurrentScheduleValue(state, this->BIPVT.SchedPtr) > 0.0)) {
 
-            Real64 Eff(0.3);
-            Real64 PotentialHeatGain = state.dataHeatBal->SurfQRadSWOutIncident(this->SurfNum) * Eff * this->AreaCol;
-            BIPVT_MaxHeatGain_calculate(state);
-
-            if (this->WorkingFluidType == WorkingFluidEnum::AIR) {
-                Real64 Winlet = state.dataLoopNodes->Node(InletNode).HumRat;
-                Real64 CpInlet = Psychrometrics::PsyCpAirFnW(Winlet);
-                if (mdot * CpInlet > 0.0) {
-                    PotentialOutletTemp = Tinlet + PotentialHeatGain / (mdot * CpInlet);
-                } else {
+            if ((state.dataLoopNodes->Node(this->HVACOutletNodeNum).TempSetPoint - Tinlet) > 0.1) {
+                BIPVT_MaxHeatGain_calculate(state,
+                                            state.dataLoopNodes->Node(this->HVACOutletNodeNum).TempSetPoint,
+                                            Mode,
+                                            BypassFraction,
+                                            PotentialHeatGain,
+                                            PotentialOutletTemp,
+                                            Eff,
+                                            Tcollector);
+                if (PotentialHeatGain < 0.0) {
+                    BypassFraction = 1.0;
+                    PotentialHeatGain = 0.0;
                     PotentialOutletTemp = Tinlet;
-                }
-                // now compare heating potential to setpoint and figure bypass fraction
-                if (PotentialOutletTemp > state.dataLoopNodes->Node(this->HVACOutletNodeNum).TempSetPoint) { // need to modulate
-                    if (Tinlet != PotentialOutletTemp) {
-                        BypassFraction =
-                            (state.dataLoopNodes->Node(this->HVACOutletNodeNum).TempSetPoint - PotentialOutletTemp) / (Tinlet - PotentialOutletTemp);
-                    } else {
-                        BypassFraction = 0.0;
-                    }
-                    BypassFraction = max(0.0, BypassFraction);
-                    PotentialOutletTemp = state.dataLoopNodes->Node(this->HVACOutletNodeNum).TempSetPoint;
-                    PotentialHeatGain = mdot * Psychrometrics::PsyCpAirFnW(Winlet) * (PotentialOutletTemp - Tinlet);
-
-                } else {
-                    BypassFraction = 0.0;
                 }
             }
 
@@ -1298,69 +1316,57 @@ namespace PhotovoltaicThermalCollectors {
             this->Report.ToutletWorkFluid = PotentialOutletTemp;
             this->Report.BypassStatus = BypassFraction;
 
-        } else if (this->CoolingUseful && this->BypassDamperOff && (mdot > 0.0)) {
-            // calculate cooling using energy balance
 
-            Real64 HrGround(0.0);
-            Real64 HrAir(0.0);
-            Real64 HcExt(0.0);
-            Real64 HrSky(0.0);
+            if (PotentialHeatGain > 0.0) this->BIPVT.LastCollectorTemp = Tcollector;
 
-            ConvectionCoefficients::InitExteriorConvectionCoeff(state,
-                                                                this->SurfNum,
-                                                                0.0,
-                                                                DataHeatBalance::VerySmooth,
-                                                                this->BIPVT.PVGEmiss,
-                                                                this->BIPVT.LastCollectorTemp,
-                                                                HcExt,
-                                                                HrSky,
-                                                                HrGround,
-                                                                HrAir);
+        } else if (this->CoolingUseful && this->BypassDamperOff && (mdot > 0.0) && (GetCurrentScheduleValue(state, this->BIPVT.SchedPtr) > 0.0)) {
 
-            Real64 WetBulbInlet(0.0);
-            Real64 DewPointInlet(0.0);
-            Real64 CpInlet(0.0);
+            Mode = "Cooling";
+            if ((Tinlet - state.dataLoopNodes->Node(this->HVACOutletNodeNum).TempSetPoint) > 0.1) {
+                BIPVT_MaxHeatGain_calculate(state,
+                                            state.dataLoopNodes->Node(this->HVACOutletNodeNum).TempSetPoint,
+                                            Mode,
+                                            BypassFraction,
+                                            PotentialHeatGain,
+                                            PotentialOutletTemp,
+                                            Eff,
+                                            Tcollector);
+                if (PotentialHeatGain > 0.0) {
+                    PotentialHeatGain = 0.0;
+                    BypassFraction = 1.0;
+                    PotentialOutletTemp = Tinlet;
+                } else {
+                    Real64 WetBulbInlet(0.0);
+                    Real64 DewPointInlet(0.0);
+                    Real64 CpInlet(0.0);
+                    Real64 Winlet = state.dataLoopNodes->Node(InletNode).HumRat;
+                    CpInlet = Psychrometrics::PsyCpAirFnW(Winlet);
+                    WetBulbInlet = Psychrometrics::PsyTwbFnTdbWPb(state, Tinlet, Winlet, state.dataEnvrn->OutBaroPress, RoutineName);
+                    DewPointInlet = Psychrometrics::PsyTdpFnTdbTwbPb(state, Tinlet, WetBulbInlet, state.dataEnvrn->OutBaroPress, RoutineName);
+                    // trap for air not being cooled below its dewpoint.
+                    if ((PotentialOutletTemp < DewPointInlet) && ((Tinlet - DewPointInlet) > 0.1)) {
+                        //  water removal would be needed.. not going to allow that for now.  limit cooling to dew point and model bypass
+                        BIPVT_MaxHeatGain_calculate(
+                            state, DewPointInlet, Mode, BypassFraction, PotentialHeatGain, PotentialOutletTemp, Eff, Tcollector);
+                        PotentialOutletTemp = DewPointInlet;
 
-            if (this->WorkingFluidType == WorkingFluidEnum::AIR) {
-                Real64 Winlet = state.dataLoopNodes->Node(InletNode).HumRat;
-                CpInlet = Psychrometrics::PsyCpAirFnW(Winlet);
-                WetBulbInlet = Psychrometrics::PsyTwbFnTdbWPb(state, Tinlet, Winlet, state.dataEnvrn->OutBaroPress, RoutineName);
-                DewPointInlet = Psychrometrics::PsyTdpFnTdbTwbPb(state, Tinlet, WetBulbInlet, state.dataEnvrn->OutBaroPress, RoutineName);
-            }
-
-            Real64 Tcollector =
-                (2.0 * mdot * CpInlet * Tinlet + this->AreaCol * (HrGround * state.dataEnvrn->OutDryBulbTemp + HrSky * state.dataEnvrn->SkyTemp +
-                                                                  HrAir * state.dataSurface->Surface(this->SurfNum).OutDryBulbTemp +
-                                                                  HcExt * state.dataSurface->Surface(this->SurfNum).OutDryBulbTemp)) /
-                (2.0 * mdot * CpInlet + this->AreaCol * (HrGround + HrSky + HrAir + HcExt));
-
-            PotentialOutletTemp = 2.0 * Tcollector - Tinlet;
-            this->Report.ToutletWorkFluid = PotentialOutletTemp;
-            // trap for air not being cooled below its wetbulb.
-            if (this->WorkingFluidType == WorkingFluidEnum::AIR) {
-                if (PotentialOutletTemp < DewPointInlet) {
-                    //  water removal would be needed.. not going to allow that for now.  limit cooling to dew point and model bypass
-                    if (Tinlet != PotentialOutletTemp) {
-                        BypassFraction = (DewPointInlet - PotentialOutletTemp) / (Tinlet - PotentialOutletTemp);
-                    } else {
-                        BypassFraction = 0.0;
                     }
-                    BypassFraction = max(0.0, BypassFraction);
-                    PotentialOutletTemp = DewPointInlet;
                 }
+            } else {
+                PotentialHeatGain = 0.0;
+                BypassFraction = 1.0;
+                PotentialOutletTemp = Tinlet;
             }
-
             this->Report.MdotWorkFluid = mdot;
             this->Report.TinletWorkFluid = Tinlet;
             this->Report.ToutletWorkFluid = PotentialOutletTemp;
-            this->Report.ThermHeatLoss = mdot * CpInlet * (Tinlet - this->Report.ToutletWorkFluid);
+            this->Report.ThermHeatLoss = -PotentialHeatGain;
             this->Report.ThermHeatGain = 0.0;
             this->Report.ThermPower = -1.0 * this->Report.ThermHeatLoss;
             this->Report.ThermEnergy = this->Report.ThermPower * state.dataHVACGlobal->TimeStepSys * DataGlobalConstants::SecInHour;
             this->Report.ThermEfficiency = 0.0;
-            this->BIPVT.LastCollectorTemp = Tcollector;
+            if (PotentialHeatGain < 0.0) this->BIPVT.LastCollectorTemp = Tcollector;
             this->Report.BypassStatus = BypassFraction;
-
         } else {
             this->Report.TinletWorkFluid = Tinlet;
             this->Report.ToutletWorkFluid = Tinlet;
@@ -1372,107 +1378,254 @@ namespace PhotovoltaicThermalCollectors {
             this->Report.BypassStatus = 1.0;
             this->Report.MdotWorkFluid = mdot;
         }
-    }
+    } // namespace PhotovoltaicThermalCollectors
 
-    void PVTCollectorStruct::BIPVT_MaxHeatGain_calculate(EnergyPlusData &state)
+    void PVTCollectorStruct::BIPVT_MaxHeatGain_calculate(
+        EnergyPlusData &state, Real64 tsp, std::string Mode, Real64 &bfr, Real64 &q, Real64 &tmixed, Real64 &ThEff, Real64 &tpv)
     {
         // SUBROUTINE INFORMATION:
-        //       AUTHOR         K. Haddad
+        //       AUTHOR         K. Haddad & S. Brideau
         //       DATE WRITTEN   March 2020
-        //       MODIFIED       na
+        //       MODIFIED       Sept 2020
         //       RE-ENGINEERED  na
 
         // PURPOSE OF THIS SUBROUTINE:
         // Calculate the maximum heat transfer from the BIPVT system to the air stream in the channel behind the PV module
 
         // METHODOLOGY EMPLOYED:
-        // ???
+        // Numerical & Analytical
 
+        const Real64 pi(3.14159);
         // BIPVT system parameters
-        Real64 rpvg_pv = this->BIPVT.PVRTop;       // thermal resistance of glass
-        Real64 rpv_1 = this->BIPVT.PVRBot;         // thermal resistance of backing layer
-        Real64 w = this->BIPVT.PVEffGapWidth;      // width of BIPVT panel
-        Real64 l = this->BIPVT.EffCollHeight;      // length of BIPVT panel
-        Real64 emiss_b = this->BIPVT.BackMatEmiss; // emissivity of backing surface
-        Real64 emiss_2(0.85);                      // emissivity of bldg surface
-        Real64 emiss_pvg = this->BIPVT.PVGEmiss;   // emissivity of glass surface
+        Real64 rpvg_pv = this->BIPVT.PVRTop;              // thermal resistance of glass (m2-K/W)
+        Real64 rpv_1 = this->BIPVT.PVRBot;                // thermal resistance of backing layer (m2-K/W)
+        Real64 w = this->BIPVT.EffCollWidth;              // width of BIPVT panel (m)
+        Real64 l = this->BIPVT.EffCollHeight;             // length of BIPVT panel (m)
+        Real64 depth_channel = this->BIPVT.PVEffGapWidth; // depth of air channel (m)
+        Real64 emiss_b = this->BIPVT.BackMatEmiss;        // emissivity of backing surface
+        Real64 emiss_2(0.85);                             // emissivity of bldg surface
+        Real64 emiss_pvg = this->BIPVT.PVGEmiss;          // emissivity of glass surface
 
         // BIPVT model parameters
-        Real64 tsurr, tsurrK;                  // surrouding temperature
-        Real64 t1, t1K, t1_new;                // temperature of pv backing surface
-        Real64 tpv, tpv_new;                   // temperature of pv surface
-        Real64 tpvg, tpvgK, tpvg_new;          // temperature of pv glass cover
-        Real64 tfout;                          // inlet and outlet fluid temperature
-        Real64 tfavg;                          // average fluid temperature
-        Real64 hconvf1(100.0);                 // heat transfer coefficient between fluid and backing surface
-        Real64 hconvf2(100.0);                 // heat transfer coefficient between fluid and bldg surface
-        Real64 hpvg_pv;                        // conductance of pv glass cover
-        Real64 hpv_1;                          // conductance of pv backing
-        Real64 hrad12;                         // radiative heat transfer coefficient between bldg surface and pv backing surface
-        Real64 hrad_surr;                      // radiative heat transfer coefficient between pv glass cover and surrounding
-        Real64 q;                              // heat transfer to fluid
-        Real64 IAM_pv, b0_pv(0.1), b1_pv(0.0); // pv incidence angle modifier parameters
-        Real64 IAM_bs, b0_bs(0.1), b1_bs(0.0); // back surface incidence angle modifier parameters
-        Real64 small_num(1.0e-10);             // small real number
+        Real64 tsurr, tsurrK;                  // surrouding temperature (DegC, DegK)
+        Real64 t1, t1K, t1_new;                // temperature of pv backing surface (DegC, DegK, DegC)
+        Real64 tpv_new;                        // temperature of pv surface (DegC, DegC)
+        Real64 tpvg, tpvgK, tpvg_new;          // temperature of pv glass cover (DegC, DegK,DegC)
+        Real64 tfavg(18.0);                    // average fluid temperature (DegC)
+        Real64 tfout;                          // outlet fluid temperature from BIPVT channel (DegC)
+        Real64 hconvf1(100.0);                 // heat transfer coefficient between fluid and backing surface (W/m2-K)
+        Real64 hconvf2(100.0);                 // heat transfer coefficient between fluid and bldg surface (W/m2-K)
+        Real64 hconvt_nat(0.0);                // htc external natural
+        Real64 hconvt_forced(0.0);             // htc external forced
+        Real64 hconvt(0.0);                    // htc external total
+        Real64 v_wind(0.0);                    // wind speed (m/s)
+        Real64 hpvg_pv;                        // conductance of pv glass cover (W/m2-K)
+        Real64 hpv_1;                          // conductance of pv backing (W/m2-K)
+        Real64 hrad12;                         // radiative heat transfer coefficient between bldg surface and pv backing surface (W/m2-K)
+        Real64 hrad_surr;                      // radiative heat transfer coefficient between pv glass cover and surrounding (W/m2-K)
+        Real64 IAM_pv, b0_pv(0.1), b1_pv(0.0); // pv incidence angle modifier parameters - Not needed???
+        Real64 IAM_bs, b0_bs(0.1), b1_bs(0.0); // back surface incidence angle modifier parameters - Not needed???
+        const Real64 small_num(1.0e-10);       // small real number
         const Real64 sigma(5.67e-8);           // stephan bolzmann constant
 
+        Real64 eff_pv(0.0);                    // efficiency pv panel
+
+
         // other parameters
-        Real64 a, b, c, d;                               // constants
-        Real64 err_tpvg(1.0), err_tpv(1.0), err_t1(1.0); // convergence errors for temperatures
-        const Real64 tol(1.0e-3);                        // temperature convergence tolerance
-        const Real64 rf(1.0);                            // relaxation factor
-        const Real64 degc_to_kelvin(273.15);             // conversion constant degC to Kelvin
-        Real64 ebal1, ebal2, ebal3;                      // energy balances on 3 surfaces
-        Real64 jj[9];                                    // 3x3 array for coefficient matrix
-        Real64 f[3];                                     // 3 element array for constant term
-        Real64 y[3];                                     // solution array for tpvg,tpv, and t1
-        int m(3);                                        // parameter for number of unknwons
-        int i;                                           // index
+        Real64 a(0), b(0), c(0), d(0), e(0);                                  // variables used for solving average fluid temperature
+        Real64 err_tpvg(1.0), err_tpv(1.0), err_t1(1.0), err_mdot_bipvt(1.0); // convergence errors for temperatures
+        const Real64 tol(1.0e-3);                                             // temperature convergence tolerance
+        const Real64 rf(0.75);                                                // relaxation factor
+        const Real64 degc_to_kelvin(273.15);                                  // conversion constant degC to Kelvin
+        Real64 ebal1, ebal2, ebal3;                                           // energy balances on 3 surfaces
+        Real64 jj[9];                                                         // 3x3 array for coefficient matrix
+        Real64 f[3];                                                          // 3 element array for constant term
+        Real64 y[3];                                                          // solution array for tpvg,tpv, and t1
+        int m(3);                                                             // parameter for number of unknwons
+        int i;                                                                // index
+        const int MaxNumIter(50);                                             // maximum number of iterations
+        int iter(0);                                                          // iteration counter
+        Real64 reynolds(0.0);                                                 // Reynolds inside collector
+        Real64 nusselt(0.0);                                                  // Nusselt inside collector
+        Real64 qelec(0.0);                                                    // elec power W
+        Real64 qf(0.0);                                                       // total thermal energy on fluid
+        Real64 vel(0.0);                                                      // flow velocity (m/s)
+        Real64 raleigh(0.0);                                                  // Raleigh number for stagnation calculations
+        Real64 dhyd(0.0);                                                     // Hydraulic diameter of channel (m)
+        Real64 gravity(9.81);                                                 // gravity m/s^2
+        Real64 mu(22.7e-6);
+        Real64 k_air(0.026);
+        Real64 prandtl(0.7);
+        Real64 density_air(1.2);
+        Real64 diffusivity(0.0);
+        Real64 kin_viscosity(0.0);
 
         // boundary conditions parameters
         int InletNode = this->HVACInletNodeNum;
-        Real64 tfin = state.dataLoopNodes->Node(InletNode).Temp;                   // inlet fluid temperature
-        Real64 w_in = state.dataLoopNodes->Node(InletNode).HumRat;                 // inlet air humidity ratio
-        Real64 cp_in = Psychrometrics::PsyCpAirFnW(w_in);                          // inlet air specific heat
-        Real64 tamb = state.dataEnvrn->OutDryBulbTemp;                             // ambient temperature
-        Real64 tsky = state.dataEnvrn->SkyTemp;                                    // sky temperature
-        Real64 t2 = state.dataSurface->Surface(this->SurfNum).OutDryBulbTemp, t2K; // temperature of bldg surface
-        Real64 HrGround(0.0);                                                      // radiation heat transfer coefficient to ground
-        Real64 HrAir(0.0);                                                         // radiation heat transfer coefficient to atmosphere
-        Real64 HcExt(0.0);                                                         // exterior convection heat transfer coefficient
-        Real64 HrSky(0.0);                                                         // radiation heat transfer coefficien to sky
-        Real64 mdot = this->MassFlowRate;                                          // fluid mass flow rate
-        Real64 s(0.0);                                                             // solar radiation gain at pv surface
-        Real64 s1(0.0);                                                            // solar radiation gain at pv backing surface
-        Real64 temp = state.dataSurface->Surface(this->SurfNum).ExtConvCoeff;
 
-        ConvectionCoefficients::InitExteriorConvectionCoeff(
-            state, this->SurfNum, 0.0, DataHeatBalance::VerySmooth, emiss_pvg, this->BIPVT.LastCollectorTemp, HcExt, HrSky, HrGround, HrAir);
+        Real64 tfin = state.dataLoopNodes->Node(InletNode).Temp;                   // inlet fluid temperature (DegC)
+        Real64 w_in = state.dataLoopNodes->Node(InletNode).HumRat;                 // inlet air humidity ratio (kgda/kg)
+        Real64 cp_in = Psychrometrics::PsyCpAirFnW(w_in);                          // inlet air specific heat (J/kg-K)
+        Real64 tamb = state.dataEnvrn->OutDryBulbTemp;                             // ambient temperature (DegC)
+        Real64 tsky = state.dataEnvrn->SkyTemp;                                    // sky temperature (DegC)
+        Real64 t2 = state.dataSurface->Surface(this->SurfNum).OutDryBulbTemp, t2K; // temperature of bldg surface (DegC)
+        Real64 HrGround(0.0);                                                      // radiation heat transfer coefficient to ground (W/m2-K)
+        Real64 HrAir(0.0);                                                         // radiation heat transfer coefficient to atmosphere (W/m2-K)
+        Real64 HcExt(0.0);                                                         // exterior convection heat transfer coefficient (W/m2-K)
+        Real64 HrSky(0.0);                                                         // radiation heat transfer coefficien to sky (W/m2-K)
+        Real64 mdot = this->MassFlowRate;                                          // fluid mass flow rate (kg/s)
+        Real64 mdot_bipvt(mdot), mdot_bipvt_new(mdot);                             // mass flow rate through the bipvt duct (kg/s)
+        Real64 s(0.0);                                                             // solar radiation gain at pv surface (W/m2)
+        Real64 s1(0.0);
+        Real64 k_taoalpha_beam(0.0);
+        Real64 k_taoalpha_sky(0.0);
+        Real64 k_taoalpha_ground(0.0); // solar radiation gain at pv backing surface (W/m2)
+        Real64 iam_pv_beam(1.0);       // incident angle modifier pv cells
+        Real64 iam_back_beam(1.0);     // incident angle modifier back
+        Real64 iam_pv_sky(1.0);
+        Real64 iam_back_sky(1.0);
+        Real64 iam_pv_ground(1.0);
+        Real64 iam_back_ground(1.0);
+        Real64 theta_sky(0.0 * pi / 180.0);                                                     // incident angle sky
+        Real64 theta_ground(0.0 * pi / 180.0);                                                  // incident angle ground
+        Real64 theta_beam = std::acos(state.dataHeatBal->SurfCosIncidenceAngle(this->SurfNum)); // incident angle beam in rad
+
+        Real64 glass_thickness = this->BIPVT.ThGlass;                                 // glass thickness
+        Real64 refrac_index_glass = this->BIPVT.RIndGlass;                            // glass refractive index
+        Real64 k_glass = this->BIPVT.ECoffGlass;                                      // extinction coefficient pv glass
+        Real64 slope = (pi / 180.0) * state.dataSurface->Surface(this->SurfNum).Tilt; // surface tilt in rad
+        Real64 beta(0); // surface tilt for calculating internal convective coefficient for stagnation condition
+        Real64 taoaplha_back = this->BIPVT.PVBackTransAbsProduct;  // tao-alpha product normal back of PV panel
+        Real64 taoalpha_pv = this->BIPVT.PVCellTransAbsProduct;    // tao-aplha product normal PV cells
+        Real64 taoaplha_cladding = this->BIPVT.CladTranAbsProduct; // tao-alpha product normal cladding
+        Real64 g(0.0);                                             // Solar incident on surface
+        Real64 fcell = this->BIPVT.PVCellAreaFract;                // area fraction of cells on pv module
+        Real64 area_pv = w * l * this->BIPVT.PVAreaFract;          // total area of pv modules
+        Real64 area_wall_total = w * l;                            // total area of wall
+
+        ConvectionCoefficients::InitExteriorConvectionCoeff(state,
+                                                            this->SurfNum,
+                                                            0.0,
+                                                            DataHeatBalance::VerySmooth,
+                                                            emiss_pvg,
+                                                            this->BIPVT.LastCollectorTemp,
+                                                            HcExt,
+                                                            HrSky,
+                                                            HrGround,
+                                                            HrAir); // these are not used right now.
+
+        theta_ground = (pi / 180) * (90 - 0.5788 * (slope * 180 / pi) + 0.002693 * std::pow((slope * 180 / pi), 2)); // incidence angle ground rad
+        theta_sky = (pi / 180) * (59.7 - 0.1388 * (slope * 180 / pi) + 0.001497 * std::pow((slope * 180 / pi), 2));  // incidence angle sky rad
+
         t1 = (tamb + t2) / 2.0;
         tpv = (tamb + t2) / 2.0;
         tpvg = (tamb + t2) / 2.0;
         hpvg_pv = 1.0 / rpvg_pv;
         hpv_1 = 1.0 / rpv_1;
-        tsurr = (tamb * HrGround + tamb * HrAir + tsky * HrSky) / (HrGround + HrAir + HrSky);
-        hrad_surr = HrGround + HrAir + HrSky;
-        IAM_pv = 1 - b0_pv * (1.0 / state.dataHeatBal->SurfCosIncidenceAngle(this->SurfNum) - 1.0) -
-                 b1_pv * pow((1.0 / state.dataHeatBal->SurfCosIncidenceAngle(this->SurfNum) - 1), 2.0);
-        IAM_pv = max(0.0, IAM_pv);
-        s = state.dataHeatBal->SurfQRadSWOutIncident(this->SurfNum) * this->BIPVT.PVAreaFract * IAM_pv;
-        IAM_bs = 1 - b0_bs * (1.0 / state.dataHeatBal->SurfCosIncidenceAngle(this->SurfNum) - 1.0) -
-                 b1_bs * pow((1.0 / state.dataHeatBal->SurfCosIncidenceAngle(this->SurfNum) - 1), 2.0);
-        IAM_bs = max(0.0, IAM_bs);
-        s1 = state.dataHeatBal->SurfQRadSWOutIncident(this->SurfNum) * (1.0 - this->BIPVT.PVAreaFract) * IAM_bs;
-        while ((err_t1 > tol) || (err_tpv > tol) || (err_tpvg > tol)) {
-            a = -(w / (mdot * cp_in)) * (hconvf1 + hconvf2);
-            b = (w / (mdot * cp_in)) * (hconvf1 * t1 + hconvf2 * t2);
-            tfavg = (1.0 / (a * l)) * (tfin + b / a) * (std::exp(a * l) - 1.0) - b / a;
+
+        reynolds = 1.2 * (mdot / (1.2 * w * depth_channel)) * (4 * w * depth_channel / (2 * (w + depth_channel))) / (230.0e-7);
+        nusselt = 0.052 * (std::pow(reynolds, 0.78)) * (std::pow(0.71, 0.4));
+        hconvf1 = 0.026 * nusselt / (4 * w * depth_channel / (2 * (w + depth_channel)));
+        nusselt = 1.017 * (std::pow(reynolds, 0.471)) * (std::pow(0.71, 0.4));
+        hconvf2 = 0.026 * nusselt / (4 * w * depth_channel / (2 * (w + depth_channel)));
+        hconvt = 4.2 + 3.5 * v_wind;
+
+        k_taoalpha_beam = calc_k_taoalpha(theta_beam, glass_thickness, refrac_index_glass, k_glass);
+        iam_back_beam = k_taoalpha_beam;
+        iam_pv_beam = k_taoalpha_beam;
+
+        k_taoalpha_sky = calc_k_taoalpha(theta_sky, glass_thickness, refrac_index_glass, k_glass);
+        iam_back_sky = k_taoalpha_sky;
+        iam_pv_sky = k_taoalpha_sky;
+
+        k_taoalpha_ground = calc_k_taoalpha(theta_ground, glass_thickness, refrac_index_glass, k_glass);
+        iam_back_ground = k_taoalpha_sky;
+        iam_pv_ground = k_taoalpha_sky;
+
+        tsurr =
+            std::pow((std::pow((tamb + 273.15), 4) * 0.5 * (1 - std::cos(slope)) + std::pow((tsky + 273.15), 4) * 0.5 * (1 - std::cos(slope))), 0.25);
+        tsurrK = tsurr + degc_to_kelvin;
+        tpvgK = tpvg + degc_to_kelvin;
+        hrad_surr = sigma * emiss_pvg * (pow(tsurrK, 2) + pow(tpvgK, 2)) * (tsurrK + tpvgK);
+
+        dhyd = 4 * w * l / (2 * (w + l));
+
+        while ((err_t1 > tol) || (err_tpv > tol) || (err_tpvg > tol) || (err_mdot_bipvt > tol)) {
+            // duffie and beckman correlation for nat convection - This is for exterior
+            raleigh = (gravity * (1.0 / (0.5 * (tamb + tpvg) + 273.15)) * (std::max((Real64)(0.000001), std::abs(tpvg - tamb))) * std::pow(dhyd, 3)) /
+                      (21.7E-6 * 1.71E-5);
+            hconvt_nat = 0.15 * std::pow(raleigh, 0.333) * 0.026 / dhyd;
+
+            hconvt_forced = 5.622 * std::pow((v_wind), 0.657) / (std::pow(l, 0.343)); // derived correlation for forced convection leeward roof
+            // hconvt_forced = 7.729 * std::pow((v_wind), 0.759) / (std::pow(l, 0.0.241)); // derived correlation for forced convection windward
+            // roof
+            hconvt = std::pow((std::pow(hconvt_forced, 3.0) + std::pow(hconvt_nat, 3.0)), 1.0 / 3.0);
+
+            eff_pv = state.dataPhotovoltaic->PVarray(this->PVnum).SNLPVCalc.EffMax;
+
+            g = state.dataHeatBal->SurfQRadSWOutIncident(this->SurfNum);
+            // s1 = DataHeatBalance::QRadSWOutIncident(this->SurfNum) * (1.0 - this->BIPVT.PVAreaFract) * IAM_bs;
+            s = g * taoalpha_pv * fcell * area_pv / area_wall_total - g * eff_pv * area_pv / area_wall_total;
+            s1 = taoaplha_back * g * (1.0 - fcell) * (area_pv / area_wall_total) + taoaplha_cladding * g * (1 - area_pv / area_wall_total);
+
+            // Properties of air required for convective heat transfer coefficient calculations inside channel - function of temperature and
+            // velocity (except for Cp_in, which is function of humidity ratio) (not moisture)
+
+            mu = 0.0000171 * (std::pow(((tfavg + 273.15) / 273.0), 1.5)) * ((273.0 + 110.4) / ((tfavg + 273.15) + 110.4));
+            k_air = 0.000000000015207 * std::pow(tfavg + 273.15, 3.0) - 0.000000048574 * std::pow(tfavg + 273.15, 2.0) +
+                    0.00010184 * (tfavg + 273.15) - 0.00039333;
+            prandtl = (-9.8398e-10) * std::pow(tfavg, 4.0) + (1.8486e-7) * std::pow(tfavg, 3.0) - (8.5713e-6) * std::pow(tfavg, 2.0) +
+                      (2.2359e-4) * tfavg + 7.15735e-1;
+            density_air = 101.3 / (0.287 * (tfavg + 273.15));
+            diffusivity = k_air / (cp_in * density_air);
+            kin_viscosity = mu / density_air;
+            //-------------------------------
             t1K = t1 + degc_to_kelvin;
             t2K = t2 + degc_to_kelvin;
             tsurrK = tsurr + degc_to_kelvin;
-            tpvgK = tpvg + 273.15;
+            tpvgK = tpvg + degc_to_kelvin;
             hrad12 = sigma * (pow(t1K, 2) + pow(t2K, 2)) * (t1K + t2K) / (1 / emiss_b + 1 / emiss_2 - 1);
             hrad_surr = sigma * emiss_pvg * (pow(tsurrK, 2) + pow(tpvgK, 2)) * (tsurrK + tpvgK);
+
+            if (mdot_bipvt > 0.0) // If there is a positive flow rate
+            {
+                vel = mdot_bipvt / (density_air * w * depth_channel);
+                reynolds = density_air * (vel) * (4 * w * depth_channel / (2 * (w + depth_channel))) / (mu);
+                nusselt = 0.052 * (std::pow(reynolds, 0.78)) * (std::pow(prandtl, 0.4));
+
+                hconvf1 = k_air * nusselt / (4 * w * depth_channel / (2 * (w + depth_channel)));
+                hconvf1 = 12.0 * vel + 3.0;
+                nusselt = 1.017 * (std::pow(reynolds, 0.471)) * (std::pow(prandtl, 0.4));
+
+                hconvf2 = k_air * nusselt / (4 * w * depth_channel / (2 * (w + depth_channel)));
+                hconvf2 = hconvf1;
+
+                a = -(w / (mdot_bipvt * cp_in)) * (hconvf1 + hconvf2);
+                b = (w / (mdot_bipvt * cp_in)) * (hconvf1 * t1 + hconvf2 * t2);
+                tfavg = (1.0 / (a * l)) * (tfin + b / a) * (std::exp(a * l) - 1.0) - b / a;
+
+            } else // if there is no flow rate (stagnation)
+            {
+                raleigh = (gravity * (1.0 / (tfavg + 273.15)) * (std::max((Real64)(0.000001), std::abs(t1 - t2))) * std::pow(depth_channel, 3)) /
+                          (diffusivity * kin_viscosity);
+                if (slope > 75.0 * pi / 180.0) {
+                    beta = 75.0 * pi / 180.0;
+                } else {
+                    beta = slope;
+                }
+                nusselt = 1.0 +
+                          1.44 * (1.0 - 1708.0 * (std::pow((std::sin(1.8 * beta)), 1.6)) / raleigh / std::cos(beta)) *
+                              std::max(0.0, (1.0 - 1708.0 / raleigh / std::cos(beta))) +
+                          std::max(0.0, ((std::pow((raleigh * std::cos(beta) / 5830.0), (1.0 / 3.0))) - 1.0));
+                hconvf1 = k_air * nusselt / depth_channel;
+                hconvf2 = hconvf1;
+                c = s + s1 + hconvt * (tamb - tpvg) + hrad_surr * (tsurr - tpvg) + hrad12 * (t2 - t1);
+                d = c + hconvf2 * t2;
+                e = -hconvf2;
+                tfavg = -d / e;
+            }
+            HcExt = hconvt;
+
             for (i = 0; i <= m - 1; i++) {
                 f[i] = 0.0;
                 y[i] = 0.0;
@@ -1496,25 +1649,37 @@ namespace PhotovoltaicThermalCollectors {
             tpvg_new = y[0];
             tpv_new = y[1];
             t1_new = y[2];
+            tfout = (tfin + b / a) * std::exp(a * l) - b / a; // air outlet temperature (DegC)
+            tmixed = bfr * tfin + (1.0 - bfr) * tfout;
+            if (((Mode == "Heating") && (q > 0.0) && (tmixed > tsp)) || ((Mode == "Cooling") && (q < 0.0) && (tmixed < tsp))) {
+                bfr = (tsp - tfout) / (tfin - tfout); // bypass fraction
+            }
+            mdot_bipvt_new = (1.0 - bfr) * mdot;
             err_tpvg = std::abs((tpvg_new - tpvg) / (tpvg + small_num));
             err_tpv = std::abs((tpv_new - tpv) / (tpv + small_num));
             err_t1 = std::abs((t1_new - t1) / (t1 + small_num));
+            err_mdot_bipvt = std::abs((mdot_bipvt_new - mdot_bipvt) / (mdot_bipvt + small_num));
             tpvg = tpvg + rf * (tpvg_new - tpvg);
             tpv = tpv + rf * (tpv_new - tpv);
             t1 = t1 + rf * (t1_new - t1);
-            tfout = (tfin + b / a) * std::exp(a * l) - b / a;
-            q = mdot * cp_in * (tfout - tfin);
+            mdot_bipvt = mdot_bipvt + rf * (mdot_bipvt_new - mdot_bipvt);
+            q = mdot_bipvt * cp_in * (tfout - tfin); // heat transfer to the air
             ebal1 = s1 + hpv_1 * (tpv - t1) + hconvf1 * (tfavg - t1) + hrad12 * (t2 - t1);
             ebal2 = s + hpvg_pv * (tpvg - tpv) + hpv_1 * (t1 - tpv);
             ebal3 = HcExt * (tpvg - tamb) + hrad_surr * (tpvg - tsurr) + hpvg_pv * (tpvg - tpv);
+            iter += 1;
+            if (iter == 50) {
+                ShowSevereError(state, "Function PVTCollectorStruct::BIPVT_MaxHeatGain_calculate: Maximum number of iterations 50 reached");
+                break;
+            }
         }
-        /*
-        std::cout << tfavg << "\n";
-        for (i = 0; i < 3; i++) {
-            std::cout << y[i] << "\n";
-        }
-        */
-        // return q
+
+        if (q > 0.0) ThEff = q / (state.dataHeatBal->SurfQRadSWOutIncident(this->SurfNum) + small_num); // Thermal efficiency of BIPVT
+        this->BIPVT.Tcoll = t1;
+        this->BIPVT.HrPlen = hrad12;
+        this->BIPVT.Tplen = tfavg;
+        this->BIPVT.HcPlen = hconvf2;
+
     }
 
     void PVTCollectorStruct::solve_lin_sys_back_sub(Real64 jj[9], Real64 f[3], Real64 (&y)[3])
@@ -1579,13 +1744,61 @@ namespace PhotovoltaicThermalCollectors {
             y[ii] = (f[ii] - sum) / jj[ii * m + ii];
             sum = 0.0;
         }
-        /*
-                std::cout << "test1" << "\n";
-                for (i = 0; i < 3; i++)
-                {
-                        std::cout << y[i] << "\n";
-                }
-        */
+    }
+
+    Real64 PVTCollectorStruct::calc_taoalpha(Real64 theta,
+                                             Real64 glass_thickness,
+                                             Real64 refrac_index_glass,
+                                             Real64 k_glass) // typ refrac_index_glass is 1.526, k_glass typ 4 m^-1, glass_thickness typ 0.002 m
+    {
+        // SUBROUTINE INFORMATION:
+        //       AUTHOR         S.Brideau
+        //       DATE WRITTEN   May 2020
+        //       MODIFIED       na
+        //       RE-ENGINEERED  na
+
+        // PURPOSE OF THIS SUBROUTINE:
+        // calculates the transmissivity absorptance of a glass/air interface, assuming all transmitted is absorbed
+
+        Real64 theta_r(0.0);
+        Real64 taoalpha(0.0);
+
+        if (theta == 0.0) // if theta is zero, set to very small positive, otehrwise, taoalpha calculation causes division by zero
+        {
+            theta = 0.000000001;
+        }
+
+        theta_r = std::asin(std::sin(theta) / refrac_index_glass);
+
+        taoalpha = std::exp(-k_glass * glass_thickness / (std::cos(theta_r))) *
+                   (1 - 0.5 * ((std::pow(std::sin(theta_r - theta), 2) / std::pow(std::sin(theta_r + theta), 2)) +
+                               (std::pow(std::tan(theta_r - theta), 2) / std::pow(std::tan(theta_r + theta), 2))));
+
+        return taoalpha;
+    }
+
+    Real64 PVTCollectorStruct::calc_k_taoalpha(Real64 theta,
+                                               Real64 glass_thickness,
+                                               Real64 refrac_index_glass,
+                                               Real64 k_glass) // typ refrac_index_glass is 1.526, k_glass typ 4 m^-1, glass_thickness typ 0.002 m
+    {
+        // SUBROUTINE INFORMATION:
+        //       AUTHOR         S.Brideau
+        //       DATE WRITTEN   May 2020
+        //       MODIFIED       na
+        //       RE-ENGINEERED  na
+
+        // PURPOSE OF THIS SUBROUTINE:
+        // calculates the off-normal angle factor K for the tao-alpha product
+        Real64 taoalpha(0.0);
+        Real64 taoalpha_zero(0.0);
+        Real64 k_taoalpha(0.0);
+
+        taoalpha = calc_taoalpha(theta, glass_thickness, refrac_index_glass, k_glass);
+        taoalpha_zero = calc_taoalpha(0.0, glass_thickness, refrac_index_glass, k_glass);
+        k_taoalpha = taoalpha / taoalpha_zero;
+
+        return k_taoalpha;
     }
 
     void PVTCollectorStruct::update(EnergyPlusData &state)
@@ -1599,6 +1812,7 @@ namespace PhotovoltaicThermalCollectors {
 
         int InletNode;
         int OutletNode;
+        int thisOSCM;
 
         {
             auto const SELECT_CASE_var(this->WorkingFluidType);
@@ -1627,6 +1841,15 @@ namespace PhotovoltaicThermalCollectors {
                 state.dataLoopNodes->Node(OutletNode).HumRat = state.dataLoopNodes->Node(InletNode).HumRat; // assumes dewpoint bound on cooling ....
                 state.dataLoopNodes->Node(OutletNode).Enthalpy =
                     Psychrometrics::PsyHFnTdbW(this->Report.ToutletWorkFluid, state.dataLoopNodes->Node(OutletNode).HumRat);
+
+                // update the OtherSideConditionsModel coefficients for BIPVT
+                if (this->PVTModelType == BIPVTmodel) {
+                    thisOSCM = this->BIPVT.OSCMPtr;
+                    state.dataSurface->OSCM(thisOSCM).TConv = this->BIPVT.Tplen;
+                    state.dataSurface->OSCM(thisOSCM).HConv = this->BIPVT.HcPlen;
+                    state.dataSurface->OSCM(thisOSCM).TRad = this->BIPVT.Tcoll;
+                    state.dataSurface->OSCM(thisOSCM).HRad = this->BIPVT.HrPlen;
+                }
             }
         }
     }
@@ -1748,6 +1971,94 @@ namespace PhotovoltaicThermalCollectors {
         bool dummyRunFlag(true);
 
         state.dataPhotovoltaicThermalCollector->PVT(index).simulate(state, dummyLoc, FirstHVACIteration, dummyCurLoad, dummyRunFlag);
+    }
+
+    void GetPVTmodelIndex(EnergyPlusData &state, int const SurfacePtr, int &PVTIndex)
+    {
+
+        // SUBROUTINE INFORMATION:
+        //       AUTHOR         K. Haddad (adpated from subroutine "GetTranspiredCollectorIndex")
+        //       DATE WRITTEN   May 2020.
+        //       MODIFIED       na
+        //       RE-ENGINEERED  na
+
+        // PURPOSE OF THIS SUBROUTINE:
+        // object oriented "Get" routine for establishing correct integer index from outside this module
+
+        // METHODOLOGY EMPLOYED:
+        // mine Surface derived type for correct index/number of surface
+        // mine PVT derived type that has the surface.
+
+        // SUBROUTINE LOCAL VARIABLE DECLARATIONS:
+        int PVTNum;   // temporary
+        int ThisSurf; // temporary
+        int thisPVT;
+        bool Found;
+
+        if (state.dataPhotovoltaicThermalCollector->GetInputFlag) {
+            GetPVTcollectorsInput(state);
+            state.dataPhotovoltaicThermalCollector->GetInputFlag = false;
+        }
+
+        if (SurfacePtr == 0) {
+            ShowFatalError(state, "Invalid surface passed to GetPVTmodelIndex, Surface name = " + state.dataSurface->Surface(SurfacePtr).Name);
+        }
+
+        PVTNum = 0;
+        Found = false;
+        for (thisPVT = 1; thisPVT <= state.dataPhotovoltaicThermalCollector->NumPVT; ++thisPVT) {
+            if (SurfacePtr == state.dataPhotovoltaicThermalCollector->PVT(thisPVT).SurfNum) {
+                Found = true;
+                PVTNum = thisPVT;
+            }
+        }
+
+        if (!Found) {
+            ShowFatalError(
+                state, "Did not find surface in PVT description in GetPVTmodelIndex, Surface name = " + state.dataSurface->Surface(SurfacePtr).Name);
+        } else {
+
+            PVTIndex = PVTNum;
+        }
+    }
+
+    void SetPVTQdotSource(EnergyPlusData &state,
+                          int const PVTNum,
+                          Real64 const QSource // source term in Watts
+    )
+    {
+
+        // SUBROUTINE INFORMATION:
+        //       AUTHOR         K. Haddad (adapted from subroutine "SetUTSCQdotSource")
+        //       DATE WRITTEN   May 2020
+        //       MODIFIED       na
+        //       RE-ENGINEERED  na
+
+        // PURPOSE OF THIS SUBROUTINE:
+        // object oriented "Set" routine for updating sink term without exposing variables
+
+        // METHODOLOGY EMPLOYED:
+        // update derived type with new data , turn power into W/m2
+
+        state.dataPhotovoltaicThermalCollector->PVT(PVTNum).QdotSource = QSource / state.dataPhotovoltaicThermalCollector->PVT(PVTNum).AreaCol;
+    }
+
+    void GetPVTTsColl(EnergyPlusData &state, int const PVTNum, Real64 &TsColl)
+    {
+
+        // SUBROUTINE INFORMATION:
+        //       AUTHOR         <author>
+        //       DATE WRITTEN   <date_written>
+        //       MODIFIED       na
+        //       RE-ENGINEERED  na
+
+        // PURPOSE OF THIS SUBROUTINE:
+        // object oriented "Get" routine for collector surface temperature
+
+        // SUBROUTINE LOCAL VARIABLE DECLARATIONS:
+        if (state.dataPhotovoltaicThermalCollector->PVT(PVTNum).PVTModelType == BIPVTmodel) {
+            TsColl = state.dataPhotovoltaicThermalCollector->PVT(PVTNum).BIPVT.CollectorTemp;
+        }
     }
 
 } // namespace PhotovoltaicThermalCollectors

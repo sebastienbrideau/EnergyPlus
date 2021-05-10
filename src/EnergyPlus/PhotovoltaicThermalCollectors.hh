@@ -75,6 +75,8 @@ namespace PhotovoltaicThermalCollectors {
         FIXED
     };
 
+    extern int NumPVT; // number of transpired collectors in model
+
     struct SimplePVTModelStruct
     {
         // Members
@@ -103,23 +105,38 @@ namespace PhotovoltaicThermalCollectors {
         std::string OSCMName;         // OtherSideConditionsModel
         int OSCMPtr;                  // OtherSideConditionsModel index
         int SchedPtr;                 // Availablity schedule
-        Real64 PVEffGapWidth;         // Effective Gap Plenum Behind PV modules
-        Real64 EffCollHeight;         // Effective Overall Width of Collector
-        Real64 EffCollWidth;          // Effective Overall Height of Collector
+        Real64 PVEffGapWidth;         // Effective Gap Plenum Behind PV modules (m)
+        Real64 EffCollHeight;         // Effective Overall Width of Collector (m)
+        Real64 EffCollWidth;          // Effective Overall Height of Collector (m)
         Real64 PVTranAbsProduct;      // PV Transmittance-Absorptance Product
+        Real64 PVCellTransAbsProduct; // PV cell Transmittance-Absorptance prodiuct
+        Real64 PVBackTransAbsProduct; // PV back Transmittance-Absorptance product
         Real64 BackMatTranAbsProduct; // Backing Material Normal Transmittance-Absorptance Product
-        Real64 PVAreaFract;           // Fraction of collector gross area covered by PV cellsn
-        Real64 PVRTop;                // PV module top thermal resistance
-        Real64 PVRBot;                // PV module bottom thermal resistance
+        Real64 CladTranAbsProduct;    // Cladding Normal Transmittance-Absorptance Product
+        Real64 PVAreaFract;           // Fraction of collector gross area covered by PV module
+        Real64 PVCellAreaFract;       // Fraction of PV cell area to module area
+        Real64 PVRTop;                // PV module top thermal resistance (m2-DegC/W)
+        Real64 PVRBot;                // PV module bottom thermal resistance (m2-DegC/W)
         Real64 PVGEmiss;              // Emissivity PV modules
         Real64 BackMatEmiss;          // Emissivity of backing material
-        Real64 LastCollectorTemp;     // store previous temperature
-        Real64 CollectorTemp;         // average solar collector temp.
+        Real64 ThGlass;               // Glass thickness (m)
+        Real64 RIndGlass;             // Glass refraction index
+        Real64 ECoffGlass;            // Glass extinction coefficient
+        Real64 LastCollectorTemp;     // store previous temperature (DegC)
+        Real64 CollectorTemp;         // average solar collector temp (DegC)
+        Real64 Tplen;                 // modeled drybulb temperature for air through BIPVT channel (DegC)
+        Real64 Tcoll;                 // modeled temperature of BIPVT channel surface on PV side (DegC)
+        Real64 HrPlen;                // Modeled radiation coef for OSCM (W/m2-C)
+        Real64 HcPlen;                // Modeled Convection coef for OSCM (W/m2-C)
 
         // Default Constructor
         BIPVTModelStruct()
-            : OSCMPtr(0), SchedPtr(0), PVEffGapWidth(0.0), EffCollHeight(0.0), EffCollWidth(0.0), PVTranAbsProduct(0.0), BackMatTranAbsProduct(0.0),
-              PVAreaFract(0.0), PVRTop(0.0), PVRBot(0.0), PVGEmiss(0.0), BackMatEmiss(0.0), LastCollectorTemp(0.0), CollectorTemp(0.0)
+
+            : OSCMPtr(0), SchedPtr(0), PVEffGapWidth(0.0), EffCollHeight(0.0), EffCollWidth(0.0), PVTranAbsProduct(0.0), PVCellTransAbsProduct(0.0),
+              PVBackTransAbsProduct(0.0), BackMatTranAbsProduct(0.0), CladTranAbsProduct(0.0), PVAreaFract(0.0), PVCellAreaFract(0.0), PVRTop(0.0),
+              PVRBot(0.0), PVGEmiss(0.0), BackMatEmiss(0.0), ThGlass(0.0), RIndGlass(0.0), ECoffGlass(0.0), LastCollectorTemp(0.0),
+              CollectorTemp(0.0), Tplen(20.0), Tcoll(20.0), HrPlen(1.0), HcPlen(10.0)
+
         {
         }
     };
@@ -164,6 +181,7 @@ namespace PhotovoltaicThermalCollectors {
         bool PVfound;                // init, need to delay get input until PV gotten
         SimplePVTModelStruct Simple; // Simple performance data structure.
         BIPVTModelStruct BIPVT;      // BIPVT performance data structure.
+        Real64 QdotSource;           // Source/sink term
         WorkingFluidEnum WorkingFluidType;
         int PlantInletNodeNum;
         int PlantOutletNodeNum;
@@ -188,7 +206,7 @@ namespace PhotovoltaicThermalCollectors {
               SurfNum(0), PVnum(0), PVfound(false), WorkingFluidType(WorkingFluidEnum::LIQUID), PlantInletNodeNum(0), PlantOutletNodeNum(0),
               HVACInletNodeNum(0), HVACOutletNodeNum(0), DesignVolFlowRate(0.0), DesignVolFlowRateWasAutoSized(false), MaxMassFlowRate(0.0),
               MassFlowRate(0.0), AreaCol(0.0), BypassDamperOff(true), CoolingUseful(false), HeatingUseful(false), MySetPointCheckFlag(true),
-              MyOneTimeFlag(true), SetLoopIndexFlag(true)
+              MyOneTimeFlag(true), SetLoopIndexFlag(true), QdotSource(0.0)
         {
         }
 
@@ -214,11 +232,18 @@ namespace PhotovoltaicThermalCollectors {
 
         void SimplePVTcalculate(EnergyPlusData &state);
 
+
         void BIPVTcalculate(EnergyPlusData &state);
 
-        void BIPVT_MaxHeatGain_calculate(EnergyPlusData &state);
+        void BIPVT_MaxHeatGain_calculate(
+            EnergyPlusData &state, Real64 tsp, std::string Mode, Real64 &bfr, Real64 &q, Real64 &tmixed, Real64 &ThEff, Real64 &tpv);
 
         void solve_lin_sys_back_sub(Real64 jj[9], Real64 f[3], Real64 (&y)[3]);
+
+        Real64 calc_k_taoalpha(Real64 theta, Real64 glass_thickness, Real64 refrac_index_glass, Real64 k_glass);
+
+        Real64 calc_taoalpha(Real64 theta, Real64 glass_thickness, Real64 refrac_index_glass, Real64 k_glass);
+
 
         void update(EnergyPlusData &state);
     };
@@ -235,7 +260,6 @@ namespace PhotovoltaicThermalCollectors {
                          Array1D<SimplePVTModelStruct> tmpSimplePVTperf,
                          Array1D<BIPVTModelStruct> tmpBIPVTperf);
 
-    // void simPVTfromOASys(int index, bool FirstHVACIteration);
 
     void simPVTfromOASys(EnergyPlusData &state, int index, bool FirstHVACIteration);
 
@@ -246,6 +270,12 @@ namespace PhotovoltaicThermalCollectors {
     int GetAirInletNodeNum(EnergyPlusData &state, std::string const &PVTName, bool &ErrorsFound);
 
     int GetAirOutletNodeNum(EnergyPlusData &state, std::string const &PVTName, bool &ErrorsFound);
+
+    void GetPVTmodelIndex(EnergyPlusData &state, int const SurfacePtr, int &PVTIndex);
+
+    void SetPVTQdotSource(EnergyPlusData &state, int const PVTNum, Real64 const QSource);
+
+    void GetPVTTsColl(EnergyPlusData &state, int const PVTNum, Real64 &TsColl);
 
 } // namespace PhotovoltaicThermalCollectors
 
