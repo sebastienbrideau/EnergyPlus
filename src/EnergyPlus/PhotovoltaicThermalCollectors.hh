@@ -232,7 +232,6 @@ namespace PhotovoltaicThermalCollectors {
 
         void SimplePVTcalculate(EnergyPlusData &state);
 
-
         void BIPVTcalculate(EnergyPlusData &state);
 
         void BIPVT_MaxHeatGain_calculate(
@@ -243,7 +242,6 @@ namespace PhotovoltaicThermalCollectors {
         Real64 calc_k_taoalpha(Real64 theta, Real64 glass_thickness, Real64 refrac_index_glass, Real64 k_glass);
 
         Real64 calc_taoalpha(Real64 theta, Real64 glass_thickness, Real64 refrac_index_glass, Real64 k_glass);
-
 
         void update(EnergyPlusData &state);
     };
@@ -259,7 +257,6 @@ namespace PhotovoltaicThermalCollectors {
                          Array1D<PVTCollectorStruct> &PVT,
                          Array1D<SimplePVTModelStruct> tmpSimplePVTperf,
                          Array1D<BIPVTModelStruct> tmpBIPVTperf);
-
 
     void simPVTfromOASys(EnergyPlusData &state, int index, bool FirstHVACIteration);
 

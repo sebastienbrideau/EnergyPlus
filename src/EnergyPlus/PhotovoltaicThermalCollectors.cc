@@ -1316,7 +1316,6 @@ namespace PhotovoltaicThermalCollectors {
             this->Report.ToutletWorkFluid = PotentialOutletTemp;
             this->Report.BypassStatus = BypassFraction;
 
-
             if (PotentialHeatGain > 0.0) this->BIPVT.LastCollectorTemp = Tcollector;
 
         } else if (this->CoolingUseful && this->BypassDamperOff && (mdot > 0.0) && (GetCurrentScheduleValue(state, this->BIPVT.SchedPtr) > 0.0)) {
@@ -1349,7 +1348,6 @@ namespace PhotovoltaicThermalCollectors {
                         BIPVT_MaxHeatGain_calculate(
                             state, DewPointInlet, Mode, BypassFraction, PotentialHeatGain, PotentialOutletTemp, Eff, Tcollector);
                         PotentialOutletTemp = DewPointInlet;
-
                     }
                 }
             } else {
@@ -1428,8 +1426,7 @@ namespace PhotovoltaicThermalCollectors {
         const Real64 small_num(1.0e-10);       // small real number
         const Real64 sigma(5.67e-8);           // stephan bolzmann constant
 
-        Real64 eff_pv(0.0);                    // efficiency pv panel
-
+        Real64 eff_pv(0.0); // efficiency pv panel
 
         // other parameters
         Real64 a(0), b(0), c(0), d(0), e(0);                                  // variables used for solving average fluid temperature
@@ -1679,7 +1676,6 @@ namespace PhotovoltaicThermalCollectors {
         this->BIPVT.HrPlen = hrad12;
         this->BIPVT.Tplen = tfavg;
         this->BIPVT.HcPlen = hconvf2;
-
     }
 
     void PVTCollectorStruct::solve_lin_sys_back_sub(Real64 jj[9], Real64 f[3], Real64 (&y)[3])
