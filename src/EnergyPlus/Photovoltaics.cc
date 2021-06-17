@@ -807,15 +807,16 @@ namespace Photovoltaics {
 
         // Using/Aliasing
         auto &TimeStepSys = state.dataHVACGlobal->TimeStepSys;
+        using PhotovoltaicThermalCollectors::GetPVTTsColl;
         using ScheduleManager::GetCurrentScheduleValue;
-
         // SUBROUTINE LOCAL VARIABLE DECLARATIONS:
-        int ThisSurf; // working index ptr to Surface arrays
-        Real64 Eff;   // working variable for solar electric efficiency
-
+        int ThisSurf;         // working index ptr to Surface arrays
+        Real64 Eff;           // working variable for solar electric efficiency
+        Real64 CellTemp(0.0); // cell temperature in Kelvin
+        Real64 CellTempC;     // cell temperature in degrees C
         ThisSurf = state.dataPhotovoltaic->PVarray(thisPV).SurfacePtr;
 
-        if (state.dataHeatBal->SurfQRadSWOutIncident(ThisSurf) > state.dataPhotovoltaic->MinIrradiance) {
+        if (1000 > state.dataPhotovoltaic->MinIrradiance) { //changed for test
 
             // get efficiency
             {
@@ -824,8 +825,12 @@ namespace Photovoltaics {
                 if (SELECT_CASE_var == Efficiency::Fixed) {
 
                     Eff = state.dataPhotovoltaic->PVarray(thisPV).SimplePVModule.PVEfficiency;
-
-                } else if (SELECT_CASE_var == Efficiency::Scheduled) { // get from schedule
+                    GetPVTTsColl(state,
+                                 state.dataPhotovoltaic->PVarray(thisPV).PVTPtr,
+                                 CellTemp);                                       // for testing only. This should be removed once testing is over
+                    Eff = 0.12533 * (1 - 0.0052748 * (CellTemp - 25.0)); // for testing only. This should be removed once testing is over
+                    state.dataPhotovoltaic->PVarray(thisPV).SimplePVModule.PVEfficiency = Eff;//testing only
+                } else if (SELECT_CASE_var == Efficiency::Scheduled) {            // get from schedule
 
                     Eff = GetCurrentScheduleValue(state, state.dataPhotovoltaic->PVarray(thisPV).SimplePVModule.EffSchedPtr);
                     state.dataPhotovoltaic->PVarray(thisPV).SimplePVModule.PVEfficiency = Eff;
@@ -840,6 +845,9 @@ namespace Photovoltaics {
                 state.dataPhotovoltaic->PVarray(thisPV).SimplePVModule.AreaCol * Eff *
                 state.dataHeatBal->SurfQRadSWOutIncident(
                     ThisSurf); // active solar cellsurface net area | solar conversion efficiency | solar incident
+           
+            state.dataPhotovoltaic->PVarray(thisPV).Report.DCPower =
+                state.dataPhotovoltaic->PVarray(thisPV).SimplePVModule.AreaCol * Eff * 1000; //solar hard coded to 1000 for testing. This should be removed once testing is over
 
             // store sink term in appropriate place for surface heat transfer itegration
             state.dataPhotovoltaic->PVarray(thisPV).SurfaceSink = state.dataPhotovoltaic->PVarray(thisPV).Report.DCPower;
@@ -949,16 +957,21 @@ namespace Photovoltaics {
         ThisSurf = state.dataPhotovoltaic->PVarray(PVnum).SurfacePtr;
 
         //   get input from elsewhere in Energyplus for the current point in the simulation
-        state.dataPhotovoltaic->PVarray(PVnum).SNLPVinto.IcBeam = state.dataHeatBal->SurfQRadSWOutIncidentBeam(ThisSurf); //(W/m2)from DataHeatBalance
-        state.dataPhotovoltaic->PVarray(PVnum).SNLPVinto.IcDiffuse =
-            state.dataHeatBal->SurfQRadSWOutIncident(ThisSurf) - state.dataHeatBal->SurfQRadSWOutIncidentBeam(ThisSurf); //(W/ m2)(was kJ/hr m2)
-        state.dataPhotovoltaic->PVarray(PVnum).SNLPVinto.IncidenceAngle =
-            std::acos(state.dataHeatBal->SurfCosIncidenceAngle(ThisSurf)) / DataGlobalConstants::DegToRadians; // (deg) from dataHeatBalance
-        state.dataPhotovoltaic->PVarray(PVnum).SNLPVinto.ZenithAngle =
-            std::acos(state.dataEnvrn->SOLCOS(3)) / DataGlobalConstants::DegToRadians;                               //(degrees),
-        state.dataPhotovoltaic->PVarray(PVnum).SNLPVinto.Tamb = state.dataSurface->Surface(ThisSurf).OutDryBulbTemp; //(deg. C)
-        state.dataPhotovoltaic->PVarray(PVnum).SNLPVinto.WindSpeed = state.dataSurface->Surface(ThisSurf).WindSpeed; // (m/s)
-        state.dataPhotovoltaic->PVarray(PVnum).SNLPVinto.Altitude = state.dataEnvrn->Elevation;                      // from DataEnvironment via USE
+        // state.dataPhotovoltaic->PVarray(PVnum).SNLPVinto.IcBeam = state.dataHeatBal->SurfQRadSWOutIncidentBeam(ThisSurf); //(W/m2)from
+        // DataHeatBalance
+        state.dataPhotovoltaic->PVarray(PVnum).SNLPVinto.IcBeam = 1000.0;
+        state.dataPhotovoltaic->PVarray(PVnum).SNLPVinto.IcDiffuse = 0.0;
+
+        // state.dataPhotovoltaic->PVarray(PVnum).SNLPVinto.IcDiffuse =
+        // state.dataHeatBal->SurfQRadSWOutIncident(ThisSurf) - state.dataHeatBal->SurfQRadSWOutIncidentBeam(ThisSurf); //(W/ m2)(was kJ/hr m2)
+        state.dataPhotovoltaic->PVarray(PVnum).SNLPVinto.IncidenceAngle = 0.0;
+        // std::acos(state.dataHeatBal->SurfCosIncidenceAngle(ThisSurf)) / DataGlobalConstants::DegToRadians; // (deg) from dataHeatBalance
+        state.dataPhotovoltaic->PVarray(PVnum).SNLPVinto.ZenithAngle = 0.0;
+        // std::acos(state.dataEnvrn->SOLCOS(3)) / DataGlobalConstants::DegToRadians;                               //(degrees),
+        state.dataPhotovoltaic->PVarray(PVnum).SNLPVinto.Tamb = 22.0;     // state.dataSurface->Surface(ThisSurf).OutDryBulbTemp; //(deg. C)
+        state.dataPhotovoltaic->PVarray(PVnum).SNLPVinto.WindSpeed = 0.9; // state.dataSurface->Surface(ThisSurf).WindSpeed; // (m/s)
+        state.dataPhotovoltaic->PVarray(PVnum).SNLPVinto.Altitude =
+            0.0; // state.dataEnvrn->Elevation;                      // from DataEnvironment via USE
 
         if (((state.dataPhotovoltaic->PVarray(PVnum).SNLPVinto.IcBeam + state.dataPhotovoltaic->PVarray(PVnum).SNLPVinto.IcDiffuse) >
              state.dataPhotovoltaic->MinIrradiance) &&

@@ -7579,6 +7579,10 @@ void CalcHeatBalanceInsideSurf2CTFOnly(EnergyPlusData &state,
                 state.dataHeatBalSurfMgr->RefAirTemp(surfNum) = state.dataHeatBalFanSys->MAT(zoneNum);
                 state.dataHeatBal->TempEffBulkAir(surfNum) = state.dataHeatBalFanSys->MAT(zoneNum); // for reporting surf adjacent air temp
             }
+            state.dataHeatBalSurfMgr->RefAirTemp(surfNum) = 22.0;
+            state.dataHeatBal->TempEffBulkAir(surfNum) = 22.0;
+            state.dataHeatBalFanSys->MAT(zoneNum) = 22.0;
+            state.dataHeatBal->HConvIn(surfNum) = 10000;
         }
 
         // Following variables must be reset due to possible recall of this routine by radiant and Resimulate routines.
